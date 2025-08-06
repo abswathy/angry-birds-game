@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Angry Birds 2D Game</title>
+  <style>
+    canvas {
+      display: none;
+      margin: 20px auto 0;
+      border: 3px solid #333;
+      background-color: #87CEEB;
+    }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #111;
+      font-family: Arial, sans-serif;
+    }
+    #scoreDisplay {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-size: 20px;
+      display: none;
+    }
+    #gameOverScreen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.8);
+      padding: 30px;
+      border-radius: 10px;
+      text-align: center;
+      display: none;
+    }
+    .btn {
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 5px;
+      border: none;
+      background: #ff4757;
+      color: white;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    #startScreen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div id="startScreen">
+    <h1>Angry Birds Game</h1>
+    <button onclick="startGame()" class="btn">Go</button>
+  </div>
+
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <audio id="hitSound" src="https://cdn.pixabay.com/download/audio/2022/03/01/audio_a1d9d0c239.mp3?filename=game-over-arcade-6435.mp3"></audio>
+  <audio id="bgMusic" src="https://cdn.pixabay.com/download/audio/2023/03/17/audio_a857e6b4bb.mp3?filename=fun-pop-14572.mp3" loop></audio>
+
+  <div id="scoreDisplay">Score: 0</div>
+
+  <div id="gameOverScreen">
+    <h2 style="color:white;">Game Over</h2>
+    <p style="color:white;">Better luck next time, Birdy!</p>
+    <button onclick="restartGame()" class="btn">Restart</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const hitSound = document.getElementById("hitSound");
+    const bgMusic = document.getElementById("bgMusic");
+    const scoreDisplay = document.getElementById("scoreDisplay");
+    const startScreen = document.getElementById("startScreen");
+
+    let bird, obstacles, frame, gameOver, score;
+    const birdColors = ["red", "yellow", "blue"];
+    let flapIndex = 0;
+
+    function startGame() {
+      startScreen.style.display = "none";
+      canvas.style.display = "block";
+      scoreDisplay.style.display = "block";
+      bgMusic.play();
+      initGame();
+    }
+
+    function initGame() {
+      bird = {
+        x: 50,
+        y: canvas.height / 2,
+        radius: 20,
+        dy: 0,
+        gravity: 0.5,
+        lift: -10,
+      };
+      obstacles = [];
+      frame = 0;
+      gameOver = false;
+      score = 0;
+      flapIndex = 0;
+      scoreDisplay.textContent = "Score: 0";
+      document.getElementById("gameOverScreen").style.display = "none";
+      draw();
+    }
+
+    function drawBird() {
+      const color = birdColors[flapIndex % birdColors.length];
+      ctx.beginPath();
+      ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.closePath();
+    }
+
+    function drawObstacles() {
+      ctx.fillStyle = "green";
+      for (let obs of obstacles) {
+        ctx.fillRect(obs.x, 0, 50, obs.top);
+        ctx.fillRect(obs.x, obs.bottom, 50, canvas.height - obs.bottom);
+      }
+    }
+
+    function updateObstacles() {
+      if (frame % 90 === 0) {
+        let top = Math.random() * (canvas.height / 2);
+        let bottom = top + 150;
+        obstacles.push({ x: canvas.width, top, bottom, passed: false });
+      }
+
+      for (let i = 0; i < obstacles.length; i++) {
+        const obs = obstacles[i];
+        obs.x -= 3;
+
+        if (
+          bird.x + bird.radius > obs.x &&
+          bird.x - bird.radius < obs.x + 50 &&
+          (bird.y - bird.radius < obs.top || bird.y + bird.radius > obs.bottom)
+        ) {
+          triggerGameOver();
+        }
+
+        if (!obs.passed && obs.x + 50 < bird.x) {
+          score++;
+          obs.passed = true;
+          scoreDisplay.textContent = "Score: " + score;
+        }
+      }
+    }
+
+    function triggerGameOver() {
+      if (!gameOver) {
+        gameOver = true;
+        hitSound.play();
+        bgMusic.pause();
+        setTimeout(() => {
+          document.getElementById("gameOverScreen").style.display = "block";
+        }, 300);
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawBird();
+      drawObstacles();
+
+      if (gameOver) return;
+
+      bird.dy += bird.gravity;
+      bird.y += bird.dy;
+
+      updateObstacles();
+
+      if (bird.y + bird.radius > canvas.height || bird.y - bird.radius < 0) {
+        triggerGameOver();
+      }
+
+      if (frame % 10 === 0) {
+        flapIndex++;
+      }
+
+      frame++;
+      requestAnimationFrame(draw);
+    }
+
+    function restartGame() {
+      bgMusic.currentTime = 0;
+      bgMusic.play();
+      initGame();
+    }
+
+    document.addEventListener("keydown", function (e) {
+      if (e.code === "Space" && !gameOver) {
+        bird.dy = bird.lift;
+      }
+    });
+
+    window.onload = () => {
+      bgMusic.volume = 0.4;
+    };
+  </script>
+</body>
+</html>
