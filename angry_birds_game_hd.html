@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Angry Birds Bike Racer</title>
+  <style>
+    canvas {
+      display: block;
+      margin: 0 auto;
+      border: 3px solid #333;
+    }
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    #controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+    }
+    .btn {
+      width: 60px;
+      height: 60px;
+      font-size: 32px;
+      border-radius: 50%;
+      border: none;
+      background: #333;
+      color: white;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="1280" height="720"></canvas>
+  <div id="controls">
+    <button class="btn" id="leftBtn">⟵</button>
+    <button class="btn" id="upBtn">⤒</button>
+    <button class="btn" id="rightBtn">⟶</button>
+  </div>
+  <audio id="winSound" src="https://cdn.pixabay.com/download/audio/2021/09/01/audio_48f26563c6.mp3?filename=win-5783.mp3"></audio>
+  <audio id="loseSound" src="https://cdn.pixabay.com/download/audio/2022/03/01/audio_a1d9d0c239.mp3?filename=game-over-arcade-6435.mp3"></audio>
+  <audio id="engineSound" src="https://cdn.pixabay.com/download/audio/2022/03/01/audio_33b284d861.mp3?filename=engine-loop-6854.mp3" loop></audio>
+  <audio id="crashSound" src="https://cdn.pixabay.com/download/audio/2023/03/03/audio_3aee14957f.mp3?filename=car-hit-143276.mp3"></audio>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const winSound = document.getElementById("winSound");
+    const loseSound = document.getElementById("loseSound");
+    const engineSound = document.getElementById("engineSound");
+    const crashSound = document.getElementById("crashSound");
+
+    const leftBtn = document.getElementById("leftBtn");
+    const rightBtn = document.getElementById("rightBtn");
+    const upBtn = document.getElementById("upBtn");
+
+    const backgroundImg = new Image();
+    backgroundImg.src = "/mnt/data/assets_task_01k201gnn4ff2am7dn79rw8j0k_1754495798_img_0.webp";
+
+    const bikeImg = new Image();
+    bikeImg.src = "/mnt/data/assets_task_01k201nketf3c98mx4yxsey6yz_1754496068_img_1.webp";
+
+    const exhaustImg = new Image();
+    exhaustImg.src = "https://i.imgur.com/tYgmmFo.png";
+
+    const wheelSpinImg = new Image();
+    wheelSpinImg.src = "https://i.imgur.com/lCyMfwJ.png";
+
+    const obstacleImg = new Image();
+    obstacleImg.src = "https://i.imgur.com/E3pKXkz.png";
+
+    let countdown = 3;
+    let countdownInterval;
+    let raceStarted = false;
+
+    const kart = {
+      x: 640,
+      y: 1300,
+      width: 120,
+      height: 120,
+      speed: 0,
+      maxSpeed: 8,
+      acceleration: 0.2,
+      friction: 0.05,
+      dx: 0,
+      fuel: 100
+    };
+
+    const keys = {
+      ArrowLeft: false,
+      ArrowRight: false,
+      ArrowUp: false
+    };
+
+    leftBtn.addEventListener("mousedown", () => keys.ArrowLeft = true);
+    leftBtn.addEventListener("mouseup", () => keys.ArrowLeft = false);
+    rightBtn.addEventListener("mousedown", () => keys.ArrowRight = true);
+    rightBtn.addEventListener("mouseup", () => keys.ArrowRight = false);
+    upBtn.addEventListener("mousedown", () => keys.ArrowUp = true);
+    upBtn.addEventListener("mouseup", () => keys.ArrowUp = false);
+
+    document.addEventListener("keydown", (e) => keys[e.key] = true);
+    document.addEventListener("keyup", (e) => keys[e.key] = false);
+
+    const obstacles = [
+      { x: 300, y: 1000, width: 100, height: 60 },
+      { x: 700, y: 800, width: 80, height: 60 },
+      { x: 500, y: 600, width: 120, height: 60 },
+      { x: 350, y: 400, width: 100, height: 60 },
+      { x: 640, y: 200, width: 100, height: 60 }
+    ];
+
+    const finishLineY = 50;
+    let gameWon = false;
+    let gameOver = false;
+    let timeLimit = 30;
+    let startTime;
+    let soundPlayed = false;
+
+    function updateKart() {
+      if (keys["ArrowUp"] && kart.speed < kart.maxSpeed && kart.fuel > 0) {
+        kart.speed += kart.acceleration;
+        if (engineSound.paused) engineSound.play();
+        kart.fuel -= 0.2;
+      } else {
+        kart.speed -= kart.friction;
+        if (kart.speed <= 0.1) engineSound.pause();
+      }
+
+      if (keys["ArrowLeft"]) kart.dx = -3;
+      else if (keys["ArrowRight"]) kart.dx = 3;
+      else kart.dx = 0;
+
+      kart.x += kart.dx;
+      kart.y -= kart.speed;
+    }
+
+    function drawBackground() {
+      ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+    }
+
+    function drawBike() {
+      ctx.drawImage(bikeImg, kart.x, kart.y, kart.width, kart.height);
+
+      if (kart.speed > 0.3) {
+        ctx.drawImage(wheelSpinImg, kart.x + 10, kart.y + 60, 20, 20);
+        ctx.drawImage(wheelSpinImg, kart.x + 80, kart.y + 60, 20, 20);
+        ctx.drawImage(exhaustImg, kart.x + 10, kart.y + kart.height, 30, 30);
+      }
+    }
+
+    function drawObstacles() {
+      for (let obs of obstacles) {
+        ctx.drawImage(obstacleImg, obs.x, obs.y, obs.width, obs.height);
+      }
+    }
+
+    function drawFuelGauge() {
+      ctx.fillStyle = "black";
+      ctx.fillRect(1050, 20, 200, 20);
+      ctx.fillStyle = "lime";
+      ctx.fillRect(1050, 20, 2 * kart.fuel, 20);
+      ctx.strokeStyle = "white";
+      ctx.strokeRect(1050, 20, 200, 20);
+      ctx.fillStyle = "black";
+      ctx.font = "16px Arial";
+      ctx.fillText("Fuel", 980, 35);
+    }
+
+    function checkCollision(rect1, rect2) {
+      return (
+        rect1.x < rect2.x + rect2.width &&
+        rect1.x + rect1.width > rect2.x &&
+        rect1.y < rect2.y + rect2.height &&
+        rect1.y + rect1.height > rect2.y
+      );
+    }
+
+    function drawTimer() {
+      const elapsed = (Date.now() - startTime) / 1000;
+      const remaining = Math.max(0, timeLimit - elapsed).toFixed(1);
+      ctx.fillStyle = "black";
+      ctx.font = "24px Arial";
+      ctx.fillText(`Time Left: ${remaining}s`, 50, 50);
+      if (remaining <= 0 && !gameWon) gameOver = true;
+    }
+
+    function drawStatus() {
+      if (gameWon && !soundPlayed) {
+        winSound.play();
+        engineSound.pause();
+        soundPlayed = true;
+      } else if (gameOver && !soundPlayed) {
+        loseSound.play();
+        engineSound.pause();
+        soundPlayed = true;
+      }
+      if (gameWon) {
+        ctx.fillStyle = "green";
+        ctx.font = "48px Arial";
+        ctx.fillText("You Win!", canvas.width / 2 - 100, canvas.height / 2);
+      } else if (gameOver) {
+        ctx.fillStyle = "red";
+        ctx.font = "48px Arial";
+        ctx.fillText("Time's Up!", canvas.width / 2 - 120, canvas.height / 2);
+      }
+    }
+
+    function drawCountdown() {
+      ctx.fillStyle = "black";
+      ctx.font = "72px Arial";
+      ctx.fillText(countdown > 0 ? countdown : "GO!", canvas.width / 2 - 50, canvas.height / 2);
+    }
+
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBackground();
+      drawObstacles();
+      drawBike();
+      drawFuelGauge();
+
+      if (raceStarted) {
+        drawTimer();
+        if (!gameOver && !gameWon) {
+          updateKart();
+          for (let obs of obstacles) {
+            if (checkCollision(kart, obs)) {
+              crashSound.play();
+              gameOver = true;
+              break;
+            }
+          }
+          if (kart.y <= finishLineY) {
+            gameWon = true;
+          }
+        }
+      } else {
+        drawCountdown();
+      }
+
+      drawStatus();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function startCountdown() {
+      countdownInterval = setInterval(() => {
+        countdown--;
+        if (countdown < 0) {
+          clearInterval(countdownInterval);
+          raceStarted = true;
+          startTime = Date.now();
+        }
+      }, 1000);
+    }
+
+    bikeImg.onload = () => {
+      startCountdown();
+      gameLoop();
+    };
+  </script>
+</body>
+</html>
